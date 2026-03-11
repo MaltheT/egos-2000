@@ -8,50 +8,50 @@
 
 #include "egos.h"
 
-#define MTIME_BASE    (CLINT_BASE + 0xBFF8)
+#define MTIME_BASE (CLINT_BASE + 0xBFF8)
 #define MTIMECMP_BASE (CLINT_BASE + 0x4000)
-#define QUANTUM       (earth->platform == QEMU ? 100000UL : 50000000UL)
+#define QUANTUM (earth->platform == QEMU ? 100000UL : 50000000UL)
 
 ulonglong mtime_get() {
-    uint low, high;
-    do {
-        high = REGW(MTIME_BASE, 4);
-        low  = REGW(MTIME_BASE, 0);
-    } while (REGW(MTIME_BASE, 4) != high);
+  uint low, high;
+  do {
+    high = REGW(MTIME_BASE, 4);
+    low = REGW(MTIME_BASE, 0);
+  } while (REGW(MTIME_BASE, 4) != high);
 
-    return (((ulonglong)high) << 32) | low;
+  return (((ulonglong)high) << 32) | low;
 }
 
 static void mtimecmp_set(ulonglong time, uint core_id) {
-    REGW(MTIMECMP_BASE, core_id * 8 + 4) = 0xFFFFFFFF;
-    REGW(MTIMECMP_BASE, core_id * 8 + 0) = (uint)time;
-    REGW(MTIMECMP_BASE, core_id * 8 + 4) = (uint)(time >> 32);
+  REGW(MTIMECMP_BASE, core_id * 8 + 4) = 0xFFFFFFFF;
+  REGW(MTIMECMP_BASE, core_id * 8 + 0) = (uint)time;
+  REGW(MTIMECMP_BASE, core_id * 8 + 4) = (uint)(time >> 32);
 }
 
 static void timer_reset(uint core_id) {
-    mtimecmp_set(mtime_get() + QUANTUM, core_id);
+  mtimecmp_set(mtime_get() + QUANTUM, core_id);
 }
 
 void trap_entry(); /* See grass/kernel.s */
 void intr_init(uint core_id) {
-    /* Initialize the timer. */
-    earth->timer_reset = timer_reset;
-    mtimecmp_set(0x0FFFFFFFFFFFFFFFUL, core_id);
+  /* Initialize the timer. */
+  earth->timer_reset = timer_reset;
+  mtimecmp_set(0x0FFFFFFFFFFFFFFFUL, core_id);
 
-    /* Setup the interrupt/exception handling entry. */
-    asm("csrw mtvec, %0" ::"r"(trap_entry));
-    INFO("Use direct mode and put the address of the trap_entry into mtvec");
+  /* Setup the interrupt/exception handling entry. */
+  asm("csrw mtvec, %0" ::"r"(trap_entry));
+  INFO("Use direct mode and put the address of the trap_entry into mtvec");
 
-    /* Enable timer interrupt. */
-    asm("csrw mip, %0" ::"r"(0));
-    asm("csrs mie, %0" ::"r"(0x80));
-    asm("csrs mstatus, %0" ::"r"(0x88));
+  /* Enable timer interrupt. */
+  asm("csrw mip, %0" ::"r"(0));
+  asm("csrs mie, %0" ::"r"(0x80));
+  asm("csrs mstatus, %0" ::"r"(0x88));
 
-    /* Student's code goes here (Ethernet & TCP/IP). */
+  /* Student's code goes here (Ethernet & TCP/IP). */
 
-    /* Enable external interrupt. Find the IRQ number corresponding to the
-     * Ethernet controller device in PLIC, enable external interrupts from
-     * this IRQ number, and then set the priority of this IRQ number to 1. */
+  /* Enable external interrupt. Find the IRQ number corresponding to the
+   * Ethernet controller device in PLIC, enable external interrupts from
+   * this IRQ number, and then set the priority of this IRQ number to 1. */
 
-    /* Student's code ends here. */
+  /* Student's code ends here. */
 }

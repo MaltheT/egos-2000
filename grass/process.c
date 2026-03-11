@@ -6,10 +6,8 @@
  */
 
 #include "process.h"
+#include "servers.h"
 
-#define MLFQ_NLEVELS 5
-#define MLFQ_RESET_PERIOD 10000000             /* 10 seconds */
-#define MLFQ_LEVEL_RUNTIME(x) (x + 1) * 100000 /* e.g., 100ms for level 0 */
 extern struct process proc_set[MAX_NPROCESS + 1];
 
 static void proc_set_status(int pid, enum proc_status status) {
@@ -24,15 +22,19 @@ void proc_set_runnable(int pid) { proc_set_status(pid, PROC_RUNNABLE); }
 void proc_set_pending(int pid) { proc_set_status(pid, PROC_PENDING_SYSCALL); }
 
 void proc_print_stats(int pid) {
+#define TICKS_PER_MS 10000 /* QEMU CLINT timer runs at 10 MHz */
   for (u32 i = 0; i < MAX_NPROCESS; i++)
     if (proc_set[i].pid == pid) {
       printf("--- Statistics of PID %d ---\n", pid);
-      printf("turnaround_time: %llu\n", proc_set[i].turnaround_time);
-      printf("response_time: %llu\n", proc_set[i].response_time);
-      printf("CPU_time: %llu\n", proc_set[i].CPU_time);
-      printf("n_timer_interrupts: %hhu\n", proc_set[i].n_timer_interrupts);
+      printf("turnaround_time: %d ms\n",
+             (int)(proc_set[i].turnaround_time / TICKS_PER_MS));
+      printf("response_time: %d ms\n",
+             (int)(proc_set[i].response_time / TICKS_PER_MS));
+      printf("CPU_time: %d ms\n", (int)(proc_set[i].CPU_time / TICKS_PER_MS));
+      printf("n_timer_interrupts: %d\n", (int)proc_set[i].n_timer_interrupts);
       break;
     }
+#undef TICKS_PER_MS
 }
 
 int proc_alloc() {
@@ -48,10 +50,14 @@ int proc_alloc() {
       proc_set[i].response_time = 0;
       proc_set[i].n_timer_interrupts = 0;
 
+      proc_set[i].wakeup_time = 0;
+
       if (curr_pid == 1)
         proc_set[i].switch_on_time = mtime_get();
 
       /* Initialization of lifecycle statistics, MLFQ or process sleep. */
+      proc_set[i].mlfq_level = 0;
+      proc_set[i].mlfq_runtime = 0;
 
       /* Student's code ends here. */
       return curr_pid;
@@ -79,6 +85,8 @@ void proc_free(int pid) {
     for (uint i = 0; i < MAX_NPROCESS; i++)
       if (proc_set[i].pid >= GPID_USER_START &&
           proc_set[i].status != PROC_UNUSED) {
+        proc_set[i].turnaround_time = mtime_get() - proc_set[i].birth_time;
+        proc_print_stats(pid);
         earth->mmu_free(proc_set[i].pid);
         proc_set[i].status = PROC_UNUSED;
       }
@@ -88,6 +96,12 @@ void proc_free(int pid) {
 
 void mlfq_update_level(struct process *p, ulonglong runtime) {
   /* Student's code goes here (Preemptive Scheduler). */
+  p->mlfq_runtime += runtime;
+  while (p->mlfq_level < MLFQ_NLEVELS - 1 &&
+         p->mlfq_runtime >= MLFQ_LEVEL_RUNTIME(p->mlfq_level)) {
+    p->mlfq_runtime -= MLFQ_LEVEL_RUNTIME(p->mlfq_level);
+    p->mlfq_level++;
+  }
 
   /* Update the MLFQ-related fields in struct process* p after this
    * process has run on the CPU for another runtime microseconds. */
@@ -97,11 +111,27 @@ void mlfq_update_level(struct process *p, ulonglong runtime) {
 
 void mlfq_reset_level() {
   /* Student's code goes here (Preemptive Scheduler). */
-  if (!earth->tty_input_empty()) {
-    /* Reset the level of GPID_SHELL if there is pending keyboard input. */
-  }
+  /* Reset the level of GPID_SHELL if there is pending keyboard input. */
 
-  static ulonglong MLFQ_last_reset_time = 0;
+  if (!earth->tty_input_empty()) {
+    for (u32 i = 0; i < MAX_NPROCESS; i++) {
+      if (proc_set[i].pid == GPID_SHELL) {
+        proc_set[i].mlfq_level = 0;
+        proc_set[i].mlfq_runtime = 0;
+      }
+    }
+  }
+  static u64 MLFQ_last_reset_time = 0;
+  u64 now = mtime_get();
+  if (now - MLFQ_last_reset_time >= MLFQ_RESET_PERIOD) {
+    MLFQ_last_reset_time = now;
+    for (u32 i = 0; i < MAX_NPROCESS; i++) {
+      if (proc_set[i].status != PROC_UNUSED) {
+        proc_set[i].mlfq_level = 0;
+        proc_set[i].mlfq_runtime = 0;
+      }
+    }
+  }
   /* Reset the level of all processes every MLFQ_RESET_PERIOD microseconds. */
 
   /* Student's code ends here. */
@@ -111,6 +141,13 @@ void proc_sleep(int pid, uint usec) {
   /* Student's code goes here (System Call & Protection). */
 
   /* Update the sleep-related fields in the struct process for process pid. */
+  for (u32 i = 0; i < MAX_NPROCESS; i++) {
+    if (proc_set[i].pid == pid) {
+      proc_set[i].wakeup_time = mtime_get() + (u64)usec * 10;
+      proc_set[i].status = PROC_SLEEPING;
+      break;
+    }
+  }
 
   /* Student's code ends here. */
 }

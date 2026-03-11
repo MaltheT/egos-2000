@@ -6,3 +6,6 @@ CompileFlags:
     - -Wl,*
   Add:
     - -xc
+    - -include
+    - library/egos.h
+    - -Iapps

@@ -1,3 +1,19 @@
+# Egos-2000 Project Progress
+
+📚 Overview of completed and in-progress sections of the Egos-2000 operating system project:
+
+| Page | Status         | Name   | Description        |
+|-------|----------------|--------------|---------------|
+| p0    | ✅ Completed   | Hello, World!        | String formatting, dynamic memory |
+| p1    | ✅ Completed   | Cooperative Threads | CPU context switching, thread memory |
+| p2    | ✅ Completed   | Preemptive Scheduler | Task scheduling, timers and interrupts |
+| p3    | 🕒 In Progress | System Call & Protection | System calls, task sleeping |
+| p4    | ⬜ Not started | Virtual Memory | |
+| p5    | ⬜ Not started | I/O Device Driver | |
+| p6   | ⬜ Not started | File System | |
+| p7   | ⬜ Not started | Ethernet & TCP/IP | |
+| p6   | ⬜ Not started | Multicore & Locks | |
+
 ## Vision
 
 This project's vision is to help **every** student read **all** the code of a teaching operating system.

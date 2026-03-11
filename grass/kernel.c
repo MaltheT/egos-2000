@@ -7,6 +7,7 @@
  *   excp_entry() handles system calls and faults (e.g., invalid memory access).
  */
 
+#include "egos.h"
 #include "process.h"
 #include <string.h>
 
@@ -97,27 +98,40 @@ static void proc_yield() {
     proc_set_runnable(curr_pid);
 
   /* Student's code goes here (Multiple Projects). */
-
-  if (curr_proc_idx != 0)
-    proc_set[curr_proc_idx].CPU_time +=
-        mtime_get() - proc_set[curr_proc_idx].switch_on_time;
-
+  struct process *p = &proc_set[curr_proc_idx];
+  if (curr_proc_idx != 0) {
+    u64 runtime = mtime_get() - p->switch_on_time;
+    p->CPU_time += runtime;
+    mlfq_update_level(p, runtime);
+  }
   /* [Preemptive Scheduler]
    * Measure and record lifecycle statistics for the *current* process.
    * Modify the loop below to find the next process to schedule with MLFQ.
    * [System Call & Protection]
    * Do not schedule a process that should still be sleeping at this time. */
+  mlfq_reset_level();
 
-  int next_idx = MAX_NPROCESS;
-  for (uint i = 1; i <= MAX_NPROCESS; i++) {
+  i32 next_idx = MAX_NPROCESS;
+  u8 lowest_mlfq_level = MLFQ_NLEVELS;
+  for (u32 i = 1; i <= MAX_NPROCESS; i++) {
     struct process *p = &proc_set[(curr_proc_idx + i) % MAX_NPROCESS];
+
+    if (p->status == PROC_SLEEPING) {
+      if (mtime_get() >= p->wakeup_time) {
+        p->wakeup_time = 0;
+        p->status = PROC_RUNNABLE;
+      } else {
+        continue; // move on to the next process
+      }
+    }
 
     if (p->status == PROC_PENDING_SYSCALL)
       proc_try_syscall(p);
 
-    if (p->status == PROC_READY || p->status == PROC_RUNNABLE) {
+    if (p->mlfq_level < lowest_mlfq_level &&
+        (p->status == PROC_READY || p->status == PROC_RUNNABLE)) {
       next_idx = (curr_proc_idx + i) % MAX_NPROCESS;
-      break;
+      lowest_mlfq_level = p->mlfq_level;
     }
   }
 
@@ -138,8 +152,14 @@ static void proc_yield() {
      * Set curr_proc_idx to 0; Reset the timer;
      * Enable interrupts by setting the mstatus.MIE bit to 1;
      * Wait for the next interrupt using the wfi instruction. */
+    curr_proc_idx = 0;
+    earth->timer_reset(core_in_kernel);
 
-    FATAL("proc_yield: no process to run on core %d", core_in_kernel);
+    asm("csrs mstatus, %0" ::"r"(0x8));
+    asm("wfi");
+    return;
+
+    // FATAL("proc_yield: no process to run on core %d", core_in_kernel);
   }
   /* Student's code ends here. */
 

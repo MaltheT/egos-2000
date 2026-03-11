@@ -2,7 +2,9 @@
 
 #include "egos.h"
 #include "syscall.h"
-#include "utils/types.h"
+#define MLFQ_NLEVELS 5
+#define MLFQ_RESET_PERIOD 10000000             /* 10 seconds */
+#define MLFQ_LEVEL_RUNTIME(x) (x + 1) * 100000 /* e.g., 100ms for level 0 */
 
 enum proc_status {
   PROC_UNUSED,
@@ -10,7 +12,8 @@ enum proc_status {
   PROC_READY,
   PROC_RUNNING,
   PROC_RUNNABLE,
-  PROC_PENDING_SYSCALL
+  PROC_PENDING_SYSCALL,
+  PROC_SLEEPING,
 };
 
 struct process {
@@ -26,7 +29,11 @@ struct process {
   u64 CPU_time;
   u8 n_timer_interrupts;
 
+  u64 wakeup_time;
+
   /* Add new fields for lifecycle statistics, MLFQ or process sleep. */
+  u8 mlfq_level;
+  u64 mlfq_runtime;
 
   /* Student's code ends here. */
 };
