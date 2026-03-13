@@ -7,7 +7,7 @@
 | p0    | ✅ Completed   | Hello, World!        | String formatting, dynamic memory |
 | p1    | ✅ Completed   | Cooperative Threads | CPU context switching, thread memory |
 | p2    | ✅ Completed   | Preemptive Scheduler | Task scheduling, timers and interrupts |
-| p3    | 🕒 In Progress | System Call & Protection | System calls, task sleeping |
+| p3    |  ✅ In Progress | System Call & Protection | System calls, task sleeping, users and machine processes|
 | p4    | ⬜ Not started | Virtual Memory | |
 | p5    | ⬜ Not started | I/O Device Driver | |
 | p6   | ⬜ Not started | File System | |

@@ -9,6 +9,7 @@
 
 #include "egos.h"
 #include "process.h"
+#include "servers.h"
 #include <string.h>
 
 uint core_in_kernel;
@@ -65,6 +66,21 @@ static void excp_entry(uint id) {
   /* Student's code goes here (System Call & Protection | Virtual Memory). */
 
   /* Kill the current process if curr_pid is a user application. */
+  if (curr_pid >= GPID_USER_START) {
+    INFO("process %d terminated with exception %d", curr_pid, id);
+
+    struct proc_request req;
+    req.type = PROC_EXIT;
+    proc_set[curr_proc_idx].syscall.type = SYS_SEND;
+    proc_set[curr_proc_idx].syscall.receiver = GPID_PROCESS;
+    proc_set[curr_proc_idx].syscall.status = PENDING;
+    memcpy(proc_set[curr_proc_idx].syscall.content, &req, sizeof(req));
+
+    proc_set_pending(curr_pid);
+    proc_try_syscall(&proc_set[curr_proc_idx]);
+    proc_yield();
+    return;
+  }
 
   /* Student's code ends here. */
   FATAL("excp_entry: kernel got exception %d", id);
@@ -141,6 +157,13 @@ static void proc_yield() {
      * [System Call & Protection | Multicore & Locks]
      * Modify mstatus.MPP to enter machine or user mode after mret. */
     struct process *next = &proc_set[next_idx];
+
+    u32 mstatus, MODE, M_MODE = 3, U_MODE = 0;
+    MODE = (next->pid < GPID_USER_START) ? M_MODE : U_MODE;
+    asm("csrr %0, mstatus" : "=r"(mstatus));
+    mstatus = (mstatus & ~(3 << 11)) | (MODE << 11);
+    asm("csrw mstatus, %0" ::"r"(mstatus));
+
     next->switch_on_time = mtime_get();
     if (next->status == PROC_READY)
       next->response_time = next->switch_on_time - next->birth_time;

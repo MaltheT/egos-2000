@@ -86,7 +86,7 @@ void proc_free(int pid) {
       if (proc_set[i].pid >= GPID_USER_START &&
           proc_set[i].status != PROC_UNUSED) {
         proc_set[i].turnaround_time = mtime_get() - proc_set[i].birth_time;
-        proc_print_stats(pid);
+        proc_print_stats(proc_set[i].pid);
         earth->mmu_free(proc_set[i].pid);
         proc_set[i].status = PROC_UNUSED;
       }
